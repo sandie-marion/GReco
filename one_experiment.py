@@ -205,39 +205,78 @@ def run(kwargs: dict) -> None:
 
 def one_exp () : 
     kwargs = {
-                        'n_workers': 50,
+                        'n_workers': 10,
                         'batch_size': 32,
                         'reg_param':1e-4,
                         'clip_param': 5,
                         'how_many_in_parallel': 60,
                         'beta': 0.9,
-                        'lr' : lr_CIFAR10_Purchase100,
+                        'lr' : lr_MNIST,
 
-                        'n_step' : 2,
+                        'n_step' : 100,
                         'seed': 1,
                         'alpha': 1,
-                        'n_byzantine_workers' : 6,
+                        'n_byzantine_workers' : 4,
                         'attack_name': 'ALIE',
-                        'aggregator_name': 'GAS',
-                        'pre_aggregator_name': 'None',
+                        'aggregator_name': 'CwTM',
+                        'pre_aggregator_name': 'ARC',
                         'criterion_name': 'CrossEntropy',
                         'training_function': stochastic_heavy_ball,
 
-                        'attack_parameters' : {'n_workers': 50, 'f': 6},
-                        'aggregator_parameters' : {'f' : 6, 'gas_p' : 1000, 'base_agg' : 'krum'},
-                        'pre_aggregator_parameters' : {'f':6},
+                        'attack_parameters' : {'n_workers': 10, 'f': 4},
+                        'aggregator_parameters' : {'q' : 4},
+                        'pre_aggregator_parameters' : {'f':4},
                         'criterion_parameters' : {},
 
                         'dataset_name': 'MNIST', # 'CIFAR10', 'Fashion_MNIST', 'MNIST', 'Purchase100'
                         'experiment_folder':'test',
-                        'experiment_id': 1,
+                        'experiment_id': 'ARC_',
                         'n_experiments' : 1,
                         'device' : 'cpu',
                         'n_classes' : 10, 
-                        'n_honest_workers' : 44,
+                        'n_honest_workers' : 6,
                     }
 
     run (kwargs)  
+
+    kwargs = {
+                        'n_workers': 10,
+                        'batch_size': 32,
+                        'reg_param':1e-4,
+                        'clip_param': 5,
+                        'how_many_in_parallel': 60,
+                        'beta': 0.9,
+                        'lr' : lr_MNIST,
+
+                        'n_step' : 100,
+                        'seed': 1,
+                        'alpha': 1,
+                        'n_byzantine_workers' : 4,
+                        'attack_name': 'ALIE',
+                        'aggregator_name': 'CwTM',
+                        'pre_aggregator_name': 'NNM',
+                        'criterion_name': 'CrossEntropy',
+                        'training_function': stochastic_heavy_ball,
+
+                        'attack_parameters' : {'n_workers': 10, 'f': 4},
+                        'aggregator_parameters' : {'q' : 4},
+                        'pre_aggregator_parameters' : {'f':4},
+                        'criterion_parameters' : {},
+
+                        'dataset_name': 'MNIST', # 'CIFAR10', 'Fashion_MNIST', 'MNIST', 'Purchase100'
+                        'experiment_folder':'test',
+                        'experiment_id': 'NNM_',
+                        'n_experiments' : 1,
+                        'device' : 'cpu',
+                        'n_classes' : 10, 
+                        'n_honest_workers' : 6,
+                    }
+
+
+    run (kwargs)  
+
+
+    
 
 
 def multiple_exp () : 

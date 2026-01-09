@@ -46,7 +46,7 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
                     
                     # if an honest worker
                     if workers[worker_id].honest:
-                
+                                        
                         model.zero_grad()
                         
                         inputs, labels = inputs.to(device), labels.to(device)

@@ -1,7 +1,8 @@
 import torch
 from utility import euclidean_distance
 from Defenses.GReco import GReco
-from agg_funs import agg_bulyan, agg_krum, agg_median, agg_rbrm
+from agg_funs import agg_bulyan
+from math import floor 
 
 class Aggregator:
     def __init__(self, 
@@ -33,6 +34,9 @@ class Aggregator:
         
         elif self.pre_aggregator_name == 'FoundFL':
             return lambda inputs: FoundationFL(inputs, **self.pre_aggregator_args)
+        
+        elif self.pre_aggregator_name == 'ARC' :
+            return lambda inputs: NNM(AdaptiveRobustClipping(inputs, **self.pre_aggregator_args), **self.pre_aggregator_args) 
         
         elif self.pre_aggregator_name == 'None':
             return lambda inputs: inputs
@@ -179,6 +183,35 @@ def FoundationFL(inputs: list, m: int) -> list:
     for _ in range(m):
         inputs.append(selected.clone())
     return inputs
+
+
+
+
+# Adaptive Robust Clipping 
+##########################
+
+def AdaptiveRobustClipping (inputs: list, f :int) -> list :
+    n = len(inputs)
+    k = floor(2*(f/n)*(n-f))
+
+    #calculate norms of gradients
+    norms = []
+    for gradient in inputs : 
+        norms.append(torch.norm(gradient)) 
+    
+    norms_tensor = torch.stack(norms) 
+
+    #sort args 
+    sorted_idx = torch.argsort(norms_tensor).tolist() 
+
+    #clip the (k+1) smallest gradients (in norm)
+    clip_threshold = norms[sorted_idx[k+1]] 
+
+    for i in range (k, n) : 
+        clip_factor = clip_threshold/norms_tensor[sorted_idx[i]]
+        inputs[sorted_idx[i]] = clip_factor*inputs[sorted_idx[i]] 
+
+    return inputs 
     
 # Aggregator
 ################################################################################################
@@ -197,7 +230,7 @@ def mean(inputs:list) -> torch.Tensor:
 
 # Coordinate-wise Median
 ################################################################################################
-def coordinate_wise_median(inputs: list)-> torch.Tensor:
+def coordinate_wise_median(inputs: list, f=None)-> torch.Tensor:
     """
     Compute the coordonate-wise median of a list of row gradients.
 
@@ -354,14 +387,14 @@ def gas_aggregate(inputs : list, f : int, gas_p : int, base_agg : str):
     identification_scores = torch.zeros(n_cl)
 
     if base_agg == 'krum' :
-        base_agg = agg_krum
+        base_agg = multi_krum
     elif base_agg == 'bulyan' :
         base_agg = agg_bulyan
     elif base_agg == 'median' :
-        base_agg = agg_median
+        base_agg = coordinate_wise_median
 
     for group in groups:
-        group_agg = base_agg(group, f)
+        group_agg = base_agg(list(group), f)
         group_scores = (group - group_agg).square().sum(dim=-1).sqrt().cpu()
         identification_scores += group_scores
     _, cand_idxs = identification_scores.topk(k=n_cl - n_sel_byz, largest=False)
