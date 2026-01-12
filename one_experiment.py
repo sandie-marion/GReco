@@ -5,6 +5,7 @@ from defenses import Aggregator
 from attacks import Attack
 from worker_datasets import worker_distributions, load_data
 from training import stochastic_heavy_ball
+from FedReDefense_training import FedReDefense_training
 from workers import Workers
 import os
 import glob
@@ -217,13 +218,18 @@ def one_exp () :
                         'seed': 1,
                         'alpha': 1,
                         'n_byzantine_workers' : 4,
-                        'attack_name': 'ALIE',
+                        'attack_name': 'SF',
                         'aggregator_name': 'CwTM',
                         'pre_aggregator_name': 'ARC',
                         'criterion_name': 'CrossEntropy',
-                        'training_function': stochastic_heavy_ball,
+                        'training_function': FedReDefense_training,
 
-                        'attack_parameters' : {'n_workers': 10, 'f': 4},
+                        'training_parameters' : {'channel' : 1, 'h' : 28, 'w' : 28, 
+                                                 'n_labels' : 10, 'n_iter' : 10, 
+                                                 'n_steps' : 10, 'batch_size' : 2, 
+                                                 'image_per_class' : 1, 'lr' : 0.5}, 
+
+                        'attack_parameters' : {},
                         'aggregator_parameters' : {'q' : 4},
                         'pre_aggregator_parameters' : {'f':4},
                         'criterion_parameters' : {},
@@ -236,42 +242,6 @@ def one_exp () :
                         'n_classes' : 10, 
                         'n_honest_workers' : 6,
                     }
-
-    run (kwargs)  
-
-    kwargs = {
-                        'n_workers': 10,
-                        'batch_size': 32,
-                        'reg_param':1e-4,
-                        'clip_param': 5,
-                        'how_many_in_parallel': 60,
-                        'beta': 0.9,
-                        'lr' : lr_MNIST,
-
-                        'n_step' : 100,
-                        'seed': 1,
-                        'alpha': 1,
-                        'n_byzantine_workers' : 4,
-                        'attack_name': 'ALIE',
-                        'aggregator_name': 'CwTM',
-                        'pre_aggregator_name': 'NNM',
-                        'criterion_name': 'CrossEntropy',
-                        'training_function': stochastic_heavy_ball,
-
-                        'attack_parameters' : {'n_workers': 10, 'f': 4},
-                        'aggregator_parameters' : {'q' : 4},
-                        'pre_aggregator_parameters' : {'f':4},
-                        'criterion_parameters' : {},
-
-                        'dataset_name': 'MNIST', # 'CIFAR10', 'Fashion_MNIST', 'MNIST', 'Purchase100'
-                        'experiment_folder':'test',
-                        'experiment_id': 'NNM_',
-                        'n_experiments' : 1,
-                        'device' : 'cpu',
-                        'n_classes' : 10, 
-                        'n_honest_workers' : 6,
-                    }
-
 
     run (kwargs)  
 

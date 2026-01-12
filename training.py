@@ -83,7 +83,7 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
                     for param_idx, param in enumerate(model.parameters()):
                         param -= lr(step) * unrow_aggregated_momentum[param_idx]
                     
-                    if step % 2 == 0:
+                    if step % 5 == 0:
                         # Compute remaining statistics to save
                         accuracy = evaluate_model(model, test_loader, device)
 

@@ -70,9 +70,6 @@ class Aggregator:
 
         elif self.aggregator_name == 'GAS':
             return lambda inputs : gas_aggregate(inputs, **self.aggregator_args)
-        
-        elif self.aggregator_name == 'GAS_param' : 
-            return lambda inputs, f : gas_aggregate(inputs, f, **self.aggregator_args)
 
         else:
             raise ValueError("Unknown aggregator")
