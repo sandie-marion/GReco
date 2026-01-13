@@ -119,7 +119,7 @@ class Workers:
     def is_honest(self, worker_id: int) -> bool:
         """
         Attribute if a worker is honest or not based on its index.
-        Honest workers are indexed from 0 to (n_honest_workers - 1)
+        Honest workers are indexed from 0 to (n_honest_workers - 1).
         """
         return worker_id < self.n_honest_workers
     
