@@ -1,5 +1,6 @@
 import torch
 import random
+from collections import Counter
 
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
@@ -33,6 +34,23 @@ def draw_distribution(alpha: float, n_workers: int, n_classes: int, n_instances:
     class_counts = torch.floor(class_counts_float).long()
 
     return class_counts
+
+
+def draw_class_wise_distribution (alpha: float, n_workers:int, n_classes:int, n_instances : list) -> torch.Tensor : 
+    heterogeneity_params = alpha * torch.ones(n_classes, n_workers)
+
+    dirichlet = torch.distributions.dirichlet.Dirichlet(heterogeneity_params).sample()
+    trans_dirichlet = torch.transpose(dirichlet, 0, 1) 
+
+        # Sample from the Dirichlet distribution to get the proportions of class instances per worker, each row is a probability vector multiply by n_instances
+    class_counts_float = torch.mul(trans_dirichlet, torch.tensor(n_instances))
+
+    # Floor the floating-point class counts to get integer values, and cast them to long integers
+    class_counts = torch.floor(class_counts_float).long() 
+
+    return class_counts
+
+
     
 # Draw distributions of workers
 ################################################################################################
@@ -59,6 +77,28 @@ def worker_distributions(n_honest_workers: int, n_byzantine_workers: int, alpha:
     
     if n_byzantine_workers>0:
         distributions_byzantine_workers = draw_distribution(alpha, n_byzantine_workers, n_classes, local_dataset_size)
+    else:
+        distributions_byzantine_workers = None
+    
+    return distributions_honest_workers, distributions_byzantine_workers
+
+
+def heterogeneous_distributions (n_honest_workers: int, n_byzantine_workers: int, alpha: float, n_classes:int, dataset_name:str) : 
+
+    train_set, _ = get_dataset(dataset_name) 
+    int_targets = []
+    for target in train_set.targets : 
+        int_targets.append(int(target))
+    sample_per_class = Counter(int_targets)
+
+    sample_per_class_row = []
+    for i in range (0, len(sample_per_class)) : 
+        sample_per_class_row.append(sample_per_class[i])
+
+    distributions_honest_workers = draw_class_wise_distribution(alpha, n_honest_workers, n_classes, sample_per_class_row)
+
+    if n_byzantine_workers>0:
+        distributions_byzantine_workers = draw_class_wise_distribution(alpha, n_byzantine_workers, n_classes, sample_per_class_row)
     else:
         distributions_byzantine_workers = None
     

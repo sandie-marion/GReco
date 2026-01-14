@@ -26,85 +26,88 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
     clip_param = kwargs['clip_param']
     experiment_folder = kwargs['experiment_folder']
 
+    n_workers = n_honest_workers + f 
+
     statistics_to_save = Statistics()
     step = 0
 
+    worker_iters = [iter(loader) for loader in workers.loaders()]
 
-    while(step < n_step):
+    for step in range (0, n_step) :
         
-        # go through worker batches
-        for batch_idx, batches in enumerate(zip(*workers.loaders())):
+        for worker_id in range (0, n_workers) : 
+
+            model.train() 
+            running_loss = 0.0
+
+            try : 
+                batch = next(worker_iters[worker_id])
+            except StopIteration :
+                worker_iters[worker_id] = iter(workers.loaders()[worker_id])
+                batch = next(worker_iters[worker_id])
             
-            if step < n_step :
-
-                model.train()
+            inputs, labels = batch 
+                    
+            # if an honest worker
+            if workers[worker_id].honest:
+                                
+                model.zero_grad()
                 
-                running_loss = 0.0
+                inputs, labels = inputs.to(device), labels.to(device)
                 
-                # for each batch of workers do
-                for worker_id, (inputs, labels) in enumerate(batches):
-                    
-                    # if an honest worker
-                    if workers[worker_id].honest:
-                                        
-                        model.zero_grad()
-                        
-                        inputs, labels = inputs.to(device), labels.to(device)
-                        
-                        outputs = model(inputs)
+                outputs = model(inputs)
 
-                        reg = regularization(model, reg_param)
-                        
-                        loss = workers[worker_id].compute_loss(outputs, labels) + reg
-                        
-                        loss.backward()
-
-                        clip_grad_norm(model, clip_param)
-                        
-                        running_loss += loss.item()/n_honest_workers
+                reg = regularization(model, reg_param)
                 
-                        workers[worker_id].compute_momentum(model, beta)
-                    
-                    # if a Byzantine worker
-                    else:
-                        row_honest_gradients = workers.get_momentums(only_honest = True, row = True)
-                        row_bad_gradient = attack(step, model, row_honest_gradients)
-                        bad_gradient = model_parameters_format(row_bad_gradient, model)
-                        workers[worker_id].momentum = bad_gradient
-                        
-                # Update model
-                with torch.no_grad():
-                    row_momentums = workers.get_momentums(only_honest = False, row = True)
+                loss = workers[worker_id].compute_loss(outputs, labels) + reg
+                
+                loss.backward()
 
-                    row_aggregated_momentum = aggregator(row_momentums)
-                    
-                    unrow_aggregated_momentum = model_parameters_format(row_aggregated_momentum, model)
-                    
-                    for param_idx, param in enumerate(model.parameters()):
-                        param -= lr(step) * unrow_aggregated_momentum[param_idx]
-                    
-                    if step % 5 == 0:
-                        # Compute remaining statistics to save
-                        accuracy = evaluate_model(model, test_loader, device)
-
-                        row_honest_momentums = workers.get_momentums(only_honest = True, row = True)
-                        grad_dissimilarity = gradient_dissimilarity(row_honest_momentums)
+                clip_grad_norm(model, clip_param)
+                
+                running_loss += loss.item()/n_honest_workers
         
-                        # Stock statistics
-                        statistics_to_save.append('Steps', step)
-                        statistics_to_save.append('RunningLoss', running_loss)
-                        statistics_to_save.append('GradientDissimilarity_Momentums', grad_dissimilarity)
-                        statistics_to_save.append('Accuracy', accuracy)
+                workers[worker_id].compute_momentum(model, beta)
+            
+            # if a Byzantine worker
+            else:
+                worker = workers[worker_id]
+                row_honest_gradients = workers.get_momentums(only_honest = True, row = True)
+                row_bad_gradient = attack(step, model, worker, inputs, labels, row_honest_gradients)
+                bad_gradient = model_parameters_format(row_bad_gradient, model)
+                workers[worker_id].momentum = bad_gradient
+                
+        # Update model
+        with torch.no_grad():
+            row_momentums = workers.get_momentums(only_honest = False, row = True)
 
-                        clear_output(wait=True)
-                        print(f"Experiment {kwargs['experiment_id']} Progress {step}/{kwargs['n_step']}")
-                        #plt.plot(statistics_to_save['Accuracy'])
-                        #plt.title(int(np.mean(statistics_to_save['Accuracy'])))
-                        #plt.show()
-    
-                    # Update util variable 
-                    step += 1
-                    running_loss = 0.0                    
+            row_aggregated_momentum = aggregator(row_momentums)
+            
+            unrow_aggregated_momentum = model_parameters_format(row_aggregated_momentum, model)
+            
+            for param_idx, param in enumerate(model.parameters()):
+                param -= lr(step) * unrow_aggregated_momentum[param_idx]
+            
+            if step % 5 == 0:
+                # Compute remaining statistics to save
+                accuracy = evaluate_model(model, test_loader, device)
+
+                row_honest_momentums = workers.get_momentums(only_honest = True, row = True)
+                grad_dissimilarity = gradient_dissimilarity(row_honest_momentums)
+
+                # Stock statistics
+                statistics_to_save.append('Steps', step)
+                statistics_to_save.append('RunningLoss', running_loss)
+                statistics_to_save.append('GradientDissimilarity_Momentums', grad_dissimilarity)
+                statistics_to_save.append('Accuracy', accuracy)
+
+                clear_output(wait=True)
+                print(f"Experiment {kwargs['experiment_id']} Progress {step}/{kwargs['n_step']}")
+                #plt.plot(statistics_to_save['Accuracy'])
+                #plt.title(int(np.mean(statistics_to_save['Accuracy'])))
+                #plt.show()
+
+            running_loss = 0.0                    
 
     # Save statistics
     save(data = statistics_to_save.data, name = 'statistics', experiment_id = kwargs['experiment_id'], experiment_folder = kwargs['experiment_folder'])

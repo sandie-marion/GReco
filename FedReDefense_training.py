@@ -8,6 +8,10 @@ from utility import Statistics, save
 from training import * 
 from copy import deepcopy
 import torch.nn.functional as F
+from reparam_module import ReparamModule
+
+from time import sleep 
+
 
 from gradients import model_parameters_format, gradient_dissimilarity
 
@@ -43,6 +47,8 @@ def FedReDefense_training (model, workers, aggregator, attack, test_loader, kwar
     statistics_to_save = Statistics()
     step = 0
 
+    n_workers = n_honest_workers + f 
+
     #initialize all LKD elements for each worker 
     LKD_list = [LKD(model, 5e-2, channel, h, w, n_labels, img_per_class) for n in range (n_honest_workers+f)]
     workers_to_consider = {}
@@ -51,6 +57,12 @@ def FedReDefense_training (model, workers, aggregator, attack, test_loader, kwar
 
 
     while(step < n_step):
+
+        #select active workers for the round 
+
+        #1 epoch over the whole local dataset for each active worker 
+
+        #aggregation 
         
         # go through worker batches
         for batch_idx, batches in enumerate(zip(*workers.loaders())):
@@ -201,13 +213,13 @@ class LKD () :
 
         self.initialize_optimizers() 
 
-        num_params = sum([np.prod(p.size()) for p in (self.base_model.parameters())])
-
         true_iter = -1
         for i in range (n_iter) :
 
-            student_model = deepcopy(self.base_model)
+            student_model = ReparamModule(deepcopy(self.base_model))
             student_model.train() 
+
+            num_params = sum([np.prod(p.size()) for p in (self.base_model.parameters())])
             
             start_trajectory = [self.base_model.state_dict().copy()[name].cpu().clone() for name in self.base_model.state_dict()]
             end_trajectory = [self.target_model.state_dict().copy()[name].cpu().clone() for name in self.target_model.state_dict()]
@@ -231,14 +243,13 @@ class LKD () :
 
                 these_indices = indices_chunks.pop()
                 x = syn_images[these_indices]
-                print(x.size()) 
                 this_y = y_hat[these_indices]
                 forward_params = student_params[-1]
-                x = student_model(x)
+                x = student_model(x, flat_param=forward_params)
                 ce_loss = kd_loss(x, this_y)
                 
-                grad = torch.autograd.grad(ce_loss, student_params[-1], create_graph=True, allow_unused=True)[0]
-                
+                grad = torch.autograd.grad(ce_loss, student_params[-1], create_graph=True)[0]
+
                 student_params.append(student_params[-1] - self.syn_lr * grad)
 
 
@@ -272,6 +283,8 @@ class LKD () :
             self.optimizer_img.step()
             self.optimizer_lr.step()
             self.optimizer_label.step() 
+
+            print("OPTIMIZER STEP DONE") 
 
         if true_iter != -1:
             iters = true_iter

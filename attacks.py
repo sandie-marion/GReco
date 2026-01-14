@@ -1,6 +1,7 @@
 import torch
 from typing import List
 import math
+from training import regularization, clip_grad_norm
 
 # Attacks involving complex code
 from Attacks.nearest_neighbor_poisoning import NearestNeighborPoisoning
@@ -62,16 +63,22 @@ class Attack:
             # Poisoned Federated Learning attack
             poisonedfl = PoisonedFL(**kwargs)
             self.attack = poisonedfl
+        
+        elif self.name == 'LF' : 
+            label_flipping = LabelFlipping(**kwargs) 
+            self.attack = label_flipping
             
         else:
             raise ValueError("Unknown attack")
     
-    def __call__(self, step, net, row_honest_gradients: list) -> torch.Tensor:
+    def __call__(self, step, net, worker, inputs, labels, row_honest_gradients) -> torch.Tensor:
         # Compute Byzantine gradient once per step
         if self.step != step:
             if self.name == 'PoisonedFL':
                 # Special handling for PoisonedFL attack
                 self.byzantine_row_gradient = self.attack(step, net, row_honest_gradients)
+            elif self.name == 'LF' : 
+                self.byzantine_row_gradient = self.attack(net, worker, inputs, labels) 
             else:
                 # Apply chosen attack to honest gradients
                 self.byzantine_row_gradient = self.attack(row_honest_gradients)
@@ -83,6 +90,38 @@ class Attack:
 # Attacks
 ################################################################################################
 ################################################################################################
+
+# Label Flipping 
+################################################################################################
+class LabelFlipping: 
+    def __init__ (self, n_classes, shift, reg_param, clip_param, beta) : 
+        self.n_classes = n_classes
+        self.shift = shift 
+        self.reg_param = reg_param
+        self.clip_param = clip_param
+        self.beta = beta
+
+
+    def __call__(self, net, worker, inputs, labels) :
+        net.train()
+        net.zero_grad() 
+        outputs = net(inputs) 
+        flipped_labels = torch.add(labels, self.shift) 
+        flipped_labels = torch.fmod(flipped_labels, self.n_classes) 
+        reg = regularization(net, self.reg_param)
+                        
+        loss = worker.compute_loss(outputs, labels) + reg
+        
+        loss.backward()
+
+        clip_grad_norm(net, self.clip_param)
+
+        worker.compute_momentum(net, self.beta)
+
+        return worker.flatten_momentum() 
+
+
+
 
 # Sign Flipping
 ################################################################################################
