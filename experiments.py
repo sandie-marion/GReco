@@ -5,7 +5,6 @@ from defenses import Aggregator
 from attacks import Attack
 from worker_datasets import worker_distributions, load_data, heterogeneous_distributions
 from training import stochastic_heavy_ball
-from FedReDefense_training import FedReDefense_training
 from workers import Workers
 import os
 import glob
@@ -255,9 +254,9 @@ def multiple_exp () :
     
 
     variable_parameters = {
-                            'attack_name': ['PLF'],
+                            'attack_name': ['LF', 'PLF'],
                             'aggregator_name': ['CwTM'],
-                            'pre_aggregator_name': ['None'],
+                            'pre_aggregator_name': ['NNM'],
                             'criterion_name': ['CrossEntropy'],
                             'dataset_name': ['MNIST'],
                             'n_byzantine_workers' : [6],
