@@ -67,18 +67,23 @@ class Attack:
         elif self.name == 'LF' : 
             label_flipping = LabelFlipping(**kwargs) 
             self.attack = label_flipping
+
+        elif self.name == 'PLF' : 
+            partial_label_flipping = PartialLabelFlipping(**kwargs) 
+            self.attack = partial_label_flipping
             
         else:
             raise ValueError("Unknown attack")
     
     def __call__(self, step, net, worker, inputs, labels, row_honest_gradients) -> torch.Tensor:
+        #If Attack is Label Flipping, we compute byzantine gradient for each byzantine workers (diff values) 
+        if self.name == 'LF' or self.name == 'PLF' : 
+            self.byzantine_row_gradient = self.attack(net, worker, inputs, labels) 
         # Compute Byzantine gradient once per step
-        if self.step != step:
+        elif self.step != step:
             if self.name == 'PoisonedFL':
                 # Special handling for PoisonedFL attack
                 self.byzantine_row_gradient = self.attack(step, net, row_honest_gradients)
-            elif self.name == 'LF' : 
-                self.byzantine_row_gradient = self.attack(net, worker, inputs, labels) 
             else:
                 # Apply chosen attack to honest gradients
                 self.byzantine_row_gradient = self.attack(row_honest_gradients)
@@ -90,6 +95,39 @@ class Attack:
 # Attacks
 ################################################################################################
 ################################################################################################
+
+
+# Partial Label Flipping 
+################################################################################################
+class PartialLabelFlipping: 
+    def __init__ (self, true_label, false_label, reg_param, clip_param, beta) : 
+        self.true_label = true_label
+        self.false_label = false_label
+
+        self.reg_param = reg_param
+        self.clip_param = clip_param
+        self.beta = beta
+
+
+    def __call__(self, net, worker, inputs, labels) :
+        net.train()
+        net.zero_grad() 
+        outputs = net(inputs) 
+        labels[labels==self.true_label] = self.false_label
+        reg = regularization(net, self.reg_param)
+                        
+        loss = worker.compute_loss(outputs, labels) + reg
+        
+        loss.backward()
+
+        clip_grad_norm(net, self.clip_param)
+
+        worker.compute_momentum(net, self.beta)
+
+        return worker.flatten_momentum() 
+    
+
+
 
 # Label Flipping 
 ################################################################################################
@@ -110,7 +148,7 @@ class LabelFlipping:
         flipped_labels = torch.fmod(flipped_labels, self.n_classes) 
         reg = regularization(net, self.reg_param)
                         
-        loss = worker.compute_loss(outputs, labels) + reg
+        loss = worker.compute_loss(outputs, flipped_labels) + reg
         
         loss.backward()
 

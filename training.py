@@ -7,6 +7,9 @@ from IPython.display import clear_output
 from utility import Statistics, save 
 
 from gradients import model_parameters_format, gradient_dissimilarity
+from time import time 
+
+from collections import Counter 
 
 # Descent algorithm
 ################################################################################################
@@ -20,6 +23,7 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
     beta = kwargs['beta']
     device = kwargs['device']
     experiment_id = kwargs['experiment_id']
+    n_classes = kwargs['n_classes']
     n_step = kwargs['n_step']
     lr = kwargs['lr']
     reg_param = kwargs['reg_param']
@@ -34,6 +38,7 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
     worker_iters = [iter(loader) for loader in workers.loaders()]
 
     for step in range (0, n_step) :
+        start = time() 
         
         for worker_id in range (0, n_workers) : 
 
@@ -47,6 +52,7 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
                 batch = next(worker_iters[worker_id])
             
             inputs, labels = batch 
+            minibatch_distrib = get_distribution(labels, n_classes)
                     
             # if an honest worker
             if workers[worker_id].honest:
@@ -54,7 +60,7 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
                 model.zero_grad()
                 
                 inputs, labels = inputs.to(device), labels.to(device)
-                
+         
                 outputs = model(inputs)
 
                 reg = regularization(model, reg_param)
@@ -82,12 +88,12 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
             row_momentums = workers.get_momentums(only_honest = False, row = True)
 
             row_aggregated_momentum = aggregator(row_momentums)
-            
             unrow_aggregated_momentum = model_parameters_format(row_aggregated_momentum, model)
-            
             for param_idx, param in enumerate(model.parameters()):
                 param -= lr(step) * unrow_aggregated_momentum[param_idx]
             
+            end = time() 
+
             if step % 5 == 0:
                 # Compute remaining statistics to save
                 accuracy = evaluate_model(model, test_loader, device)
@@ -95,11 +101,14 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
                 row_honest_momentums = workers.get_momentums(only_honest = True, row = True)
                 grad_dissimilarity = gradient_dissimilarity(row_honest_momentums)
 
+                t_epoch = end - start 
+
                 # Stock statistics
                 statistics_to_save.append('Steps', step)
                 statistics_to_save.append('RunningLoss', running_loss)
                 statistics_to_save.append('GradientDissimilarity_Momentums', grad_dissimilarity)
                 statistics_to_save.append('Accuracy', accuracy)
+                statistics_to_save.append('Time', t_epoch)
 
                 clear_output(wait=True)
                 print(f"Experiment {kwargs['experiment_id']} Progress {step}/{kwargs['n_step']}")
@@ -107,7 +116,8 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
                 #plt.title(int(np.mean(statistics_to_save['Accuracy'])))
                 #plt.show()
 
-            running_loss = 0.0                    
+            running_loss = 0.0 
+
 
     # Save statistics
     save(data = statistics_to_save.data, name = 'statistics', experiment_id = kwargs['experiment_id'], experiment_folder = kwargs['experiment_folder'])
@@ -164,3 +174,13 @@ def evaluate_model(model: Module, test_loader, device: torch.device) -> float:
 
     return 100.0 * correct / total
 
+
+def get_distribution (labels : list, n_labels : int) -> torch.Tensor : 
+    nb_samples = len(labels) 
+    label_list = [int(l) for l in labels]
+    sample_per_class = Counter(label_list)
+    distribution = [0 for i in range(0,n_labels)]
+    for label in sample_per_class :
+        distribution[label] = sample_per_class[label] / nb_samples
+
+    return torch.tensor(distribution)  

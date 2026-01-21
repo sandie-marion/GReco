@@ -160,6 +160,19 @@ def get_dataset(dataset_name: str) -> tuple:
         train_set = datasets.FashionMNIST(root="./data", train=True, transform=transform_train, download=True)
         test_set = datasets.FashionMNIST(root="./data", train=False, transform=transform_test, download=True)
     
+    elif dataset_name == "EMNIST" : 
+        transform_train = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.1307,), std=(0.3081,))
+        ])
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.1307,), std=(0.3081,))
+        ])
+    
+        train_set = datasets.EMNIST(root="./data", split="byclass", train=True, transform=transform_train, download=True)
+        test_set = datasets.EMNIST(root="./data", split="byclass", train=False, transform=transform_test, download=True)
+        
     elif dataset_name == "Purchase100":
         train_set = Purchase100Dataset(train_bool=True)
         test_set = Purchase100Dataset(train_bool=False)
@@ -326,7 +339,7 @@ def draw_test_set_loader(distributions: torch.Tensor, test_set: torch.utils.data
 
 # Compute worker and test loaders
 ################################################################################################        
-def load_data(distributions: torch.Tensor, batch_size: int, dataset_name: str):
+def load_data(distributions: torch.Tensor, batch_size: int, dataset_name: str, heterogeneous_distrib):
     """
     Get worker loaders and test loader.
     Args:
@@ -339,7 +352,10 @@ def load_data(distributions: torch.Tensor, batch_size: int, dataset_name: str):
     if distributions is not None:
         train_set, test_set = get_dataset(dataset_name)
         worker_loaders = draw_worker_loaders(distributions, train_set, batch_size)
-        test_loader = draw_test_set_loader(distributions, test_set, batch_size)
+        if not heterogeneous_distrib :
+            test_loader = draw_test_set_loader(distributions, test_set, batch_size)
+        else : 
+            test_loader = DataLoader(test_set) 
        
     # If distribution is None
     else:
@@ -347,3 +363,5 @@ def load_data(distributions: torch.Tensor, batch_size: int, dataset_name: str):
         test_loader = None
 
     return worker_loaders, test_loader
+
+
