@@ -1,7 +1,6 @@
 import torch
 from utility import euclidean_distance
 from Defenses.GReco import GReco
-from agg_funs import agg_bulyan
 from math import floor 
 
 class Aggregator:
@@ -70,9 +69,6 @@ class Aggregator:
 
         elif self.aggregator_name == 'GAS':
             return lambda inputs : gas_aggregate(inputs, **self.aggregator_args)
-        
-        elif self.aggregator_name == 'GAS_param' : 
-            return lambda inputs, f : gas_aggregate(inputs, f, **self.aggregator_args)
 
         else:
             raise ValueError("Unknown aggregator")
@@ -191,6 +187,7 @@ def FoundationFL(inputs: list, m: int) -> list:
 ##########################
 
 def AdaptiveRobustClipping (inputs: list, f :int) -> list :
+    print("in ARC")
     n = len(inputs)
     k = floor(2*(f/n)*(n-f))
 
@@ -388,8 +385,6 @@ def gas_aggregate(inputs : list, f : int, gas_p : int, base_agg : str):
 
     if base_agg == 'krum' :
         base_agg = multi_krum
-    elif base_agg == 'bulyan' :
-        base_agg = agg_bulyan
     elif base_agg == 'median' :
         base_agg = coordinate_wise_median
 

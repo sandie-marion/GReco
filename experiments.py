@@ -31,6 +31,13 @@ def get_attack_parameters(kwargs):
                 'reg_param' : kwargs['reg_param'], 
                 'clip_param' : kwargs['clip_param'], 
                 'beta' : kwargs['beta']}
+    elif kwargs['attack_name'] == 'PLF' : 
+        return {'true_label' : 0, 
+                'false_label' : 2, 
+                'reg_param' : kwargs['reg_param'], 
+                'clip_param' : kwargs['clip_param'], 
+                'beta' : kwargs['beta']
+                }
     else:
         return {}
 
@@ -85,11 +92,15 @@ def get_id(kwargs):
         'n_classes', 'attack_parameters', 'aggregator_parameters',
         'pre_aggregator_parameters', 'criterion_parameters',
         'n_step', 'reg_param', 'clip_param', 'lr', 'experiment_folder', 'n_experiments',
-        'heterogeneous_distribution', 'seed', "training_function"
+        'heterogeneous_distribution', 'seed', 'training_parameters'
     }
     
     experiment_id = '_'.join(str(v) for k, v in kwargs.items() if k not in exclude)
     experiment_id += '_'
+    if kwargs['heterogeneous_distribution'] :
+        experiment_id += "distrib2_"
+    else : 
+        experiment_id += "distrib1_"
 
     return experiment_id
     
@@ -216,6 +227,11 @@ def run(kwargs: dict) -> None:
     kwargs_to_save = {k: v for k, v in kwargs.items() if k != 'lr'} # Exclude 'lr' because it is a function and should not be saved
     save(data = kwargs_to_save, name = 'kwargs', experiment_id = experiment_id, experiment_folder = experiment_folder)
 
+    if kwargs['training_function'] == 'stochastic_heavy_ball' :
+        training_function = stochastic_heavy_ball
+    elif kwargs['training_function'] == 'FedReDefense_training' :
+        training_function = FedReDefense_training
+
     # Run the federated learning experiment
     print('Training', experiment_id, '/', n_experiments, ' starts.')
     training_function(model, workers, aggregator, attack, test_loader, kwargs)
@@ -223,78 +239,6 @@ def run(kwargs: dict) -> None:
     # Log end
     print('Experiment ', experiment_id, 'ends.')
 
-def one_exp () : 
-    kwargs = {
-                        'n_workers': 20,
-                        'batch_size': 32,
-                        'reg_param':1e-4,
-                        'clip_param': 5,
-                        'how_many_in_parallel': 60,
-                        'beta': 0.9,
-                        'lr' : lr_MNIST,
-
-                        'n_step' : 300,
-                        'seed': 1,
-                        'alpha': 0.5,
-                        'n_byzantine_workers' : 5,
-                        'attack_name': 'ALIE',
-                        'aggregator_name': 'CwTM',
-                        'pre_aggregator_name': 'GAS',
-                        'criterion_name': 'CrossEntropy',
-                        'heterogeneous_distribution' : 0,
-                        'training_function': stochastic_heavy_ball,
-
-                        'attack_parameters' : {'n_workers' :20, 'f' : 5},
-                        'aggregator_parameters' : {'q' : 5},
-                        'pre_aggregator_parameters' : {'f':5},
-                        'criterion_parameters' : {},
-
-                        'dataset_name': 'CIFAR10', # 'CIFAR10', 'Fashion_MNIST', 'MNIST', 'Purchase100'
-                        'experiment_folder':'test',
-                        'experiment_id': 'gas_',
-                        'n_experiments' : 1,
-                        'device' : 'cpu',
-                        'n_classes' : 10, 
-                        'n_honest_workers' : 15,
-                    }
-
-    run (kwargs)  
-
-    kwargs = {
-                        'n_workers': 20,
-                        'batch_size': 32,
-                        'reg_param':1e-4,
-                        'clip_param': 5,
-                        'how_many_in_parallel': 60,
-                        'beta': 0.9,
-                        'lr' : lr_MNIST,
-
-                        'n_step' : 300,
-                        'seed': 1,
-                        'alpha': 0.5,
-                        'n_byzantine_workers' : 5,
-                        'attack_name': 'ALIE',
-                        'aggregator_name': 'CwTM',
-                        'pre_aggregator_name': 'None',
-                        'criterion_name': 'CrossEntropy',
-                        'heterogeneous_distribution' : 1,
-                        'training_function': stochastic_heavy_ball,
-
-                        'attack_parameters' : {'n_workers' :20, 'f' : 5},
-                        'aggregator_parameters' : {'q' : 5},
-                        'pre_aggregator_parameters' : {'f':5},
-                        'criterion_parameters' : {},
-
-                        'dataset_name': 'CIFAR10', # 'CIFAR10', 'Fashion_MNIST', 'MNIST', 'Purchase100'
-                        'experiment_folder':'test',
-                        'experiment_id': 'distrib_hetero_cifar',
-                        'n_experiments' : 1,
-                        'device' : 'cpu',
-                        'n_classes' : 10, 
-                        'n_honest_workers' : 15,
-                    }
-
-    run (kwargs)  
 
     
 
@@ -305,19 +249,19 @@ def multiple_exp () :
     #                         'aggregator_name': ['CWMed','CwTM','RFA','Krum','Mean'],
     #                         'pre_aggregator_name': ['None','NNM','BKT','FoundFL'],
     #                         'criterion_name': ['CrossEntropy','FedLC','DMFL'],
-    #                         'training_name': ["stochastic_heavy_ball", "gradient_approx_training"],
     #                         'dataset_name': ['Purchase100', 'MNIST', 'CIFAR10', 'Fashion_MNIST'],
     #                     }
     
 
     variable_parameters = {
-                            'attack_name': ['ALIE'],
+                            'attack_name': ['LF', 'PLF'],
                             'aggregator_name': ['CwTM'],
-                            'pre_aggregator_name': ['ARC'],
+                            'pre_aggregator_name': ['NNM'],
                             'criterion_name': ['CrossEntropy'],
-                            'training_name': ["heterogeneous_training"],
-                            'dataset_name': ['EMNIST'],
-                            'n_byzantine_workers' : [2, 4, 6, 8, 10],
+                            'dataset_name': ['MNIST'],
+                            'n_byzantine_workers' : [6],
+                            'alpha': [0.3],
+                            'training_function' : ['stochastic_heavy_ball'],
                         }
     
 
@@ -327,10 +271,7 @@ def multiple_exp () :
                     'reg_param':1e-4,
                     'clip_param': 5,
                     'beta': 0.9,
-
                     'seed': 1,
-                    'alpha': 0.6,
-
                     'experiment_folder':'test',
                     'heterogeneous_distribution' : 1,
                 }
@@ -380,13 +321,11 @@ def multiple_exp () :
         infered_parameters['n_honest_workers'] = all_parameters['n_workers'] - all_parameters['n_byzantine_workers']
         
         if all_parameters['dataset_name'] == 'MNIST' or all_parameters['dataset_name'] == 'EMNIST' or all_parameters['dataset_name'] == 'Fashion_MNIST' :
-            infered_parameters['n_step'] =  50
+            infered_parameters['n_step'] =  100
             infered_parameters['lr'] = lr_MNIST
         else:
-            infered_parameters['n_step'] =  100 
+            infered_parameters['n_step'] =  2001 
             infered_parameters['lr'] = lr_CIFAR10_Purchase100
-
-        infered_parameters["training_function"] = stochastic_heavy_ball 
 
         infered_parameters["device"] = 'cuda' if torch.cuda.is_available() else 'cpu'
 
