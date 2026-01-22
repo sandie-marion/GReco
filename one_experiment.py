@@ -311,28 +311,27 @@ def multiple_exp () :
     
 
     variable_parameters = {
-                            'attack_name': ['ALIE'],
-                            'aggregator_name': ['CwTM'],
-                            'pre_aggregator_name': ['ARC'],
+                            'attack_name': ['ALIE','FOE','Mimic','MinMax','MinSum','LF'],
+                            'aggregator_name': ['CWMed','CwTM','RFA','Krum'],
+                            'pre_aggregator_name': ['NNM','ARC'],
                             'criterion_name': ['CrossEntropy'],
-                            'training_name': ["heterogeneous_training"],
-                            'dataset_name': ['EMNIST'],
-                            'n_byzantine_workers' : [2, 4, 6, 8, 10],
+                            'dataset_name': ['CIFAR10','EMNIST','Fashion_MNIST','Purchase100'],
+                            'n_byzantine_workers' : [0, 5, 15, 25, 35],
+                            'alpha' : [0.1, 1, 10],
                         }
     
 
     constant_parameters = {
-                    'n_workers': 20,
+                    'n_workers': 80,
                     'batch_size': 32,
                     'reg_param':1e-4,
                     'clip_param': 5,
                     'beta': 0.9,
 
                     'seed': 1,
-                    'alpha': 0.6,
 
-                    'experiment_folder':'test',
-                    'heterogeneous_distribution' : 1,
+                    'experiment_folder':'test_seed1',
+                    'heterogeneous_distribution' : 0, #distrib originelle avec le meme nombre de samples par clients
                 }
     
     combinations = []

@@ -94,7 +94,7 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
             
             end = time() 
 
-            if step % 5 == 0:
+            if step % 50 == 0:
                 # Compute remaining statistics to save
                 accuracy = evaluate_model(model, test_loader, device)
 
