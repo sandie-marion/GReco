@@ -97,10 +97,6 @@ def get_id(kwargs):
     
     experiment_id = '_'.join(str(v) for k, v in kwargs.items() if k not in exclude)
     experiment_id += '_'
-    if kwargs['heterogeneous_distribution'] :
-        experiment_id += "distrib2_"
-    else : 
-        experiment_id += "distrib1_"
 
     return experiment_id
     
@@ -177,8 +173,6 @@ def run(kwargs: dict) -> None:
     lr = kwargs['lr']
     experiment_folder = kwargs['experiment_folder']
 
-    training_function = kwargs['training_function']
-    
 
     # Log start
     print('Experiment', experiment_id, '/', n_experiments, 'starts.')
@@ -227,14 +221,9 @@ def run(kwargs: dict) -> None:
     kwargs_to_save = {k: v for k, v in kwargs.items() if k != 'lr'} # Exclude 'lr' because it is a function and should not be saved
     save(data = kwargs_to_save, name = 'kwargs', experiment_id = experiment_id, experiment_folder = experiment_folder)
 
-    if kwargs['training_function'] == 'stochastic_heavy_ball' :
-        training_function = stochastic_heavy_ball
-    elif kwargs['training_function'] == 'FedReDefense_training' :
-        training_function = FedReDefense_training
-
     # Run the federated learning experiment
     print('Training', experiment_id, '/', n_experiments, ' starts.')
-    training_function(model, workers, aggregator, attack, test_loader, kwargs)
+    stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwargs)
 
     # Log end
     print('Experiment ', experiment_id, 'ends.')
@@ -254,27 +243,29 @@ def multiple_exp () :
     
 
     variable_parameters = {
-                            'attack_name': ['LF', 'PLF'],
-                            'aggregator_name': ['CwTM'],
-                            'pre_aggregator_name': ['NNM'],
+                            'attack_name': ['ALIE','FOE','Mimic','MinMax','MinSum','LF'],
+                            'aggregator_name': ['CWMed','CwTM','RFA','Krum'],
+                            'pre_aggregator_name': ['NNM','ARC'],
                             'criterion_name': ['CrossEntropy'],
-                            'dataset_name': ['MNIST'],
-                            'n_byzantine_workers' : [6],
-                            'alpha': [0.3],
-                            'training_function' : ['stochastic_heavy_ball'],
+                            'dataset_name': ['CIFAR10','EMNIST','Fashion_MNIST','Purchase100'],
+                            'n_byzantine_workers' : [0, 5, 15, 25, 35],
+                            'alpha' : [0.1, 1, 10],
                         }
     
 
     constant_parameters = {
-                    'n_workers': 20,
+                    'n_workers': 80,
                     'batch_size': 32,
                     'reg_param':1e-4,
                     'clip_param': 5,
                     'beta': 0.9,
                     'seed': 1,
-                    'experiment_folder':'test',
-                    'heterogeneous_distribution' : 1,
+                    'experiment_folder':'test_seed1',
+                    'heterogeneous_distribution' : 0,
                 }
+    
+    experiment_folder = constant_parameters['experiment_folder']
+    already_done = get_completed_experiments(experiment_folder)
     
     combinations = []
     
@@ -321,18 +312,25 @@ def multiple_exp () :
         infered_parameters['n_honest_workers'] = all_parameters['n_workers'] - all_parameters['n_byzantine_workers']
         
         if all_parameters['dataset_name'] == 'MNIST' or all_parameters['dataset_name'] == 'EMNIST' or all_parameters['dataset_name'] == 'Fashion_MNIST' :
-            infered_parameters['n_step'] =  100
+            infered_parameters['n_step'] =  801
             infered_parameters['lr'] = lr_MNIST
         else:
             infered_parameters['n_step'] =  2001 
             infered_parameters['lr'] = lr_CIFAR10_Purchase100
 
-        infered_parameters["device"] = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if experiment_id not in already_done:
+            if torch.cuda.is_available(): 
+                n_gpu = gpu_selection % torch.cuda.device_count()
+                device = torch.device(f"cuda:{n_gpu}")
+                infered_parameters['device'] = device
+                
+                gpu_selection += 1
+            else : 
+                infered_parameters['device'] = 'cpu'
 
-
-        kwargs = all_parameters | infered_parameters
-
-        experiments.append(kwargs)
+        if experiment_id not in already_done : 
+            kwargs = all_parameters | infered_parameters
+            experiments.append(kwargs)
 
     print("NB EXP :", len(experiments))
     for exp in experiments : 
