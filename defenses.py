@@ -69,6 +69,9 @@ class Aggregator:
 
         elif self.aggregator_name == 'GAS':
             return lambda inputs : gas_aggregate(inputs, **self.aggregator_args)
+        
+        elif self.aggregator_name == 'Bulyan' : 
+            return lambda inputs : agg_bulyan(inputs, **self.aggregator_args)
 
         else:
             raise ValueError("Unknown aggregator")
@@ -187,7 +190,7 @@ def FoundationFL(inputs: list, m: int) -> list:
 ##########################
 
 def AdaptiveRobustClipping (inputs: list, f :int) -> list :
-    print("in ARC")
+
     n = len(inputs)
     k = floor(2*(f/n)*(n-f))
 
@@ -364,6 +367,28 @@ def rfa(inputs: list, T: int = 3, nu: float = 0.1) -> torch.Tensor:
 
 
 
+
+# Geometric Median
+################################################################################################
+@torch.no_grad() 
+def agg_bulyan(inputs: list, f : int):
+    n_cl = len(inputs)
+    n_byz = f
+
+    tensor = torch.stack(inputs, dim=0)
+
+    squared_dists = torch.cdist(tensor, tensor).square()
+    topk_dists, _ = squared_dists.topk(k=n_cl - n_byz -1, dim=-1, largest=False, sorted=False)    
+    scores = topk_dists.sum(dim=-1)
+    _, krum_candidate_idxs = scores.topk(k=n_cl - 2 * n_byz, dim=-1, largest=False)
+
+    krum_tensor = tensor[krum_candidate_idxs]
+    med, _ = krum_tensor.median(dim=0)
+    dist = (krum_tensor - med).abs()
+    tr_updates, _ = dist.topk(k=n_cl - 4 * n_byz, dim=0, largest=False)
+    agg_tensor = tr_updates.mean(dim=0)
+    
+    return agg_tensor
 
 #################################################
 

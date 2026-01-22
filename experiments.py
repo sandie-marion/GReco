@@ -52,6 +52,8 @@ def get_aggregator_parameters(kwargs):
         return {'f':kwargs['n_byzantine_workers'], 
                 'gas_p' : 1000, 
                 'base_agg' : 'krum'}
+    elif kwargs['aggregator_name'] == 'Bulyan' : 
+        return {'f':kwargs['n_byzantine_workers']}
     else:
         return {}
         
@@ -244,7 +246,7 @@ def multiple_exp () :
 
     variable_parameters = {
                             'attack_name': ['ALIE','FOE','Mimic','MinMax','MinSum','LF'],
-                            'aggregator_name': ['CWMed','CwTM','RFA','Krum'],
+                            'aggregator_name': ['Bulyan', 'CWMed','CwTM','RFA','Krum'],
                             'pre_aggregator_name': ['NNM','ARC'],
                             'criterion_name': ['CrossEntropy'],
                             'dataset_name': ['CIFAR10','EMNIST','Fashion_MNIST','Purchase100'],
@@ -333,8 +335,19 @@ def multiple_exp () :
             experiments.append(kwargs)
 
     print("NB EXP :", len(experiments))
-    for exp in experiments : 
-        run(exp) 
+    how_many_in_parallel = 60 
+    mini_batch_of_combinations = split_list(experiments, how_many_in_parallel)
+
+
+    torch.multiprocessing.set_start_method('spawn')
+
+    for combination_batch in mini_batch_of_combinations:
+        pool = Pool()
+        pool.map(run, combination_batch)
+        pool.close()
+        pool.join()
+        torch.cuda.empty_cache()
+        gc.collect()
 
 if __name__ == "__main__" :     
     multiple_exp() 
