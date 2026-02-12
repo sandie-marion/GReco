@@ -15,7 +15,7 @@ def get_model(dataset_name: str, device: torch.device) -> Module:
         'MNIST': (NIST_Model, 10),
         'Fashion_MNIST': (NIST_Model, 10),
         'Purchase100': (Purchase100_Model, 100),
-        'EMNIST' : (EMNIST_Model, 62),
+        'EMNIST' : (NIST_Model, 62),
     }
 
     if dataset_name not in model_mapping:

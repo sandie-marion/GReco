@@ -69,6 +69,8 @@ def worker_distributions(n_honest_workers: int, n_byzantine_workers: int, alpha:
         gobal_dataset_size = 50000
     elif dataset_name == 'Purchase100':
         gobal_dataset_size = 157859
+    elif dataset_name == 'EMNIST' : 
+        gobal_dataset_size = 697932
         
     local_dataset_size = gobal_dataset_size // n_honest_workers
     
