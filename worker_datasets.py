@@ -98,6 +98,12 @@ def heterogeneous_distributions (n_honest_workers: int, n_byzantine_workers: int
         sample_per_class_row.append(sample_per_class[i])
 
     distributions_honest_workers = draw_class_wise_distribution(alpha, n_honest_workers, n_classes, sample_per_class_row)
+    counts_per_client = torch.sum(distributions_honest_workers, 1).tolist() 
+    while 0 in counts_per_client : 
+        distributions_honest_workers = draw_class_wise_distribution(alpha, n_honest_workers, n_classes, sample_per_class_row)
+        counts_per_client = torch.sum(distributions_honest_workers, 1).tolist() 
+        print("pas de chance") 
+
 
     if n_byzantine_workers>0:
         distributions_byzantine_workers = draw_class_wise_distribution(alpha, n_byzantine_workers, n_classes, sample_per_class_row)

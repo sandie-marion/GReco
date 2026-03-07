@@ -1,0 +1,11 @@
+{
+    "attack_name": ["MinSum","LF"],
+    "aggregator_name": ["HullGuard"],
+    "pre_aggregator_name": ["None"],
+    "criterion_name": ["CrossEntropy"],
+    "hullguard_attack_param" : ["dirac", "uniform", "random", "projection"],
+    "dataset_name": ["CIFAR10", "MNIST", "Fashion_MNIST"],
+    "n_byzantine_workers" : [0, 6, 12, 18, 24],
+    "alpha" : [0.1, 1, 10], 
+    "gpu_list" : [0]
+}

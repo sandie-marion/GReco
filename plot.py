@@ -87,24 +87,25 @@ def plot (files, var_values, feature, save_path) :
     plt.close() 
 
 
-experiment_folder = 'test_ARC_NNM'
+experiment_folder = 'test_seed1'
 
 constant_parameters = {
-                'n_workers': 20,
+                'n_workers': 60,
                 'batch_size': 32,
                 'beta': 0.9,
-                'attack_name': 'ALIE',
-                'aggregator_name': 'CwTM',
-                'alpha' : 0.3,
                 'criterion_name': 'CrossEntropy',
+                'dataset_name': 'CIFAR10',
             }
 
 
 variable_parameters = {
-                            'pre_aggregator_name': ['NNM','ARC'],
-                            'dataset_name': ['CIFAR10','MNIST'],
-                            'n_byzantine_workers' : [4, 8],
-                        }
+                    "attack_name": ["ALIE","FOE","Mimic","MinSum","LF"],
+                    "aggregator_name": ["CWMed","CwTM","RFA"],
+                    "pre_aggregator_name": ["BKT", "None"],
+                    "n_byzantine_workers" : [2, 8, 14, 20, 26],
+                    "alpha" : [0.1, 1, 10], 
+                    "gpu_list" : [1, 2, 3]
+                }
 
 
 combinations = []

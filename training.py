@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from IPython.display import clear_output
 from utility import Statistics, save 
+from Defenses.HullGuard import DistributionAttack
 
 from gradients import model_parameters_format, gradient_dissimilarity
 from time import time 
@@ -13,7 +14,7 @@ from collections import Counter
 
 # Descent algorithm
 ################################################################################################
-def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwargs):
+def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, prop_class, kwargs):
     """
     The stochastic heavy ball algorithm is described in detail in Fixing by Mixing: A Recipe for Optimal Byzantine ML under Heterogeneity.
     """
@@ -29,13 +30,23 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
     reg_param = kwargs['reg_param']
     clip_param = kwargs['clip_param']
     experiment_folder = kwargs['experiment_folder']
+    aggregator_name = kwargs['aggregator_name']
 
     n_workers = n_honest_workers + f 
 
     statistics_to_save = Statistics()
     step = 0
 
+    if aggregator_name=='HullGuard':
+        filterscores_to_save = Statistics()
+        hullguard_attack = kwargs['hullguard_attack_param']
+        dist_attack = DistributionAttack(hullguard_attack, n_classes, n_honest_workers) # dirac, uniform, random, projection
+
     worker_iters = [iter(loader) for loader in workers.loaders()]
+
+    if aggregator_name=='HullGuard':
+        dist_attack = DistributionAttack('uniform', n_classes, n_honest_workers) # dirac, uniform, random, projection
+
 
     for step in range (0, n_step) :
         start = time() 
@@ -47,16 +58,15 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
 
             try : 
                 batch = next(worker_iters[worker_id])
-            except StopIteration :
+            except :
                 worker_iters[worker_id] = iter(workers.loaders()[worker_id])
                 batch = next(worker_iters[worker_id])
-            
+                
             inputs, labels = batch 
             minibatch_distrib = get_distribution(labels, n_classes)
                     
             # if an honest worker
-            if workers[worker_id].honest:
-                                
+            if workers[worker_id].honest:                                
                 model.zero_grad()
                 
                 inputs, labels = inputs.to(device), labels.to(device)
@@ -74,20 +84,38 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
                 running_loss += loss.item()/n_honest_workers
         
                 workers[worker_id].compute_momentum(model, beta)
+
+                counts = torch.bincount(labels, minlength=n_classes)     
+                proportions = counts.float() / labels.numel()
+                workers[worker_id].class_proportion = beta * workers[worker_id].class_proportion + (1 - beta) * proportions
             
             # if a Byzantine worker
             else:
-                worker = workers[worker_id]
+                # step, net, worker, inputs, labels, row_honest_gradients, device
                 row_honest_gradients = workers.get_momentums(only_honest = True, row = True)
-                row_bad_gradient = attack(step, model, worker, inputs, labels, row_honest_gradients)
+                row_bad_gradient = attack(step, model, workers[worker_id], inputs, labels, row_honest_gradients, device)
                 bad_gradient = model_parameters_format(row_bad_gradient, model)
                 workers[worker_id].momentum = bad_gradient
-                
+
         # Update model
         with torch.no_grad():
             row_momentums = workers.get_momentums(only_honest = False, row = True)
 
-            row_aggregated_momentum = aggregator(row_momentums)
+            if aggregator_name=='HullGuard':
+                class_proportions = workers.get_class_proportions()
+                byz_dist = dist_attack(row_momentums, class_proportions).detach()
+                for worker_id in range(n_workers):
+                    if not workers[worker_id].honest:
+                        workers[worker_id].class_proportion = byz_dist
+            
+                class_proportions = workers.get_class_proportions()
+                row_aggregated_momentum, filter_score = aggregator(row_momentums, class_proportions)
+                filterscores_to_save.append("filter_score", filter_score) 
+                
+            else:
+                row_aggregated_momentum = aggregator(row_momentums)
+            
+            
             unrow_aggregated_momentum = model_parameters_format(row_aggregated_momentum, model)
             for param_idx, param in enumerate(model.parameters()):
                 param -= lr(step) * unrow_aggregated_momentum[param_idx]
@@ -96,7 +124,7 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
 
             if step % 50 == 0:
                 # Compute remaining statistics to save
-                accuracy = evaluate_model(model, test_loader, device)
+                accuracy = evaluate_model(model, test_loader, prop_class, device)
 
                 row_honest_momentums = workers.get_momentums(only_honest = True, row = True)
                 grad_dissimilarity = gradient_dissimilarity(row_honest_momentums)
@@ -120,6 +148,8 @@ def stochastic_heavy_ball(model, workers, aggregator, attack, test_loader, kwarg
 
 
     # Save statistics
+    if aggregator_name == "HullGuard" : 
+        save(data = filterscores_to_save.data, name = 'filter_score', experiment_id = kwargs['experiment_id'], experiment_folder = kwargs['experiment_folder'])
     save(data = statistics_to_save.data, name = 'statistics', experiment_id = kwargs['experiment_id'], experiment_folder = kwargs['experiment_folder'])
     del statistics_to_save
     del inputs, labels, outputs
@@ -160,7 +190,7 @@ def lr_MNIST(step):
 
 # Evaluation
 ################################################################################################
-def evaluate_model(model: Module, test_loader, device: torch.device) -> float:
+def evaluate_model_old(model: Module, test_loader, device: torch.device) -> float:
     """Return model accuracy (%) on test data."""
     model.eval()
     correct, total = 0, 0
@@ -173,6 +203,31 @@ def evaluate_model(model: Module, test_loader, device: torch.device) -> float:
             total += labels.size(0)
 
     return 100.0 * correct / total
+
+
+def evaluate_model(model: Module, test_loader, prop_class, device: torch.device) -> float:
+    """Return model accuracy (%) on test data."""
+    model.eval()
+    n = len(prop_class) 
+    correct = [0 for i in range (n)] 
+    total = [0 for i in range (n)] 
+
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            preds = model(inputs).argmax(dim=1)
+            for l, p in zip(labels, preds) : 
+                total[l] += 1 
+                if l == p : 
+                    correct[l] += 1
+
+    result = 0 
+    for c, t, p in zip(correct, total, prop_class) : 
+        result += (c/t)*p 
+
+    print("result evaluation :", result) 
+
+    return result
 
 
 def get_distribution (labels : list, n_labels : int) -> torch.Tensor : 

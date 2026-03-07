@@ -1,7 +1,8 @@
 import torch
 from utility import euclidean_distance
-from Defenses.GReco import GReco
+from Defenses.HullGuard import HullGuard
 from math import floor 
+from byzfl.utils.misc import check_vectors_type, distance_tool, random_tool
 
 class Aggregator:
     def __init__(self, 
@@ -34,9 +35,6 @@ class Aggregator:
         elif self.pre_aggregator_name == 'FoundFL':
             return lambda inputs: FoundationFL(inputs, **self.pre_aggregator_args)
         
-        elif self.pre_aggregator_name == 'ARC' :
-            return lambda inputs: NNM(AdaptiveRobustClipping(inputs, **self.pre_aggregator_args), **self.pre_aggregator_args) 
-        
         elif self.pre_aggregator_name == 'None':
             return lambda inputs: inputs
         
@@ -61,26 +59,21 @@ class Aggregator:
         
         elif self.aggregator_name == 'Krum':
             return lambda inputs: multi_krum(inputs, **self.aggregator_args)
-        
-        elif self.aggregator_name == 'GReco':
-            f_rfa =  lambda inputs: rfa(inputs)
-            greco = GReco(agg=f_rfa, **self.aggregator_args)
-            return lambda inputs, pi: greco(inputs, pi)
 
-        elif self.aggregator_name == 'GAS':
+        elif self.aggregator_name == "GAS" : 
             return lambda inputs : gas_aggregate(inputs, **self.aggregator_args)
         
-        elif self.aggregator_name == 'Bulyan' : 
-            return lambda inputs : agg_bulyan(inputs, **self.aggregator_args)
+        elif self.aggregator_name == 'HullGuard':
+            f_rfa =  lambda inputs: rfa(inputs)
+            hullguard = HullGuard(agg=f_rfa, **self.aggregator_args)
+            return lambda inputs, pi: hullguard(inputs, pi)
 
         else:
             raise ValueError("Unknown aggregator")
 
-    def __call__(self, inputs: list, pi = None, selected_byz = None) -> torch.Tensor:
+    def __call__(self, inputs: list, pi = None) -> torch.Tensor:
         if pi is not None:
             return self.aggregator(pi, inputs)
-        elif selected_byz is not None : 
-            return self.aggregator(inputs, selected_byz)
             
         else:
             return self.aggregator(self.pre_aggregator(inputs))
@@ -90,7 +83,34 @@ class Aggregator:
 ################################################################################################
 
 # NNM
+'''
+def NNM(inputs: list, f: int, device: str) -> torch.Tensor:
+    """
+    Perform Neighborhood Noise Mixing (NNM) on the input vectors using PyTorch.
+
+    Args:
+        inputs (torch.Tensor): Tensor of shape (n, d), where n = number of workers, d = dimension.
+        f (int): Fault parameter.
+
+    Returns:
+        torch.Tensor: Tensor of shape (n, d), the averaged row vectors.
+    """
+    inputs = torch.stack(inputs, dim=0).to('cpu') 
+    
+    n, d = inputs.shape
+
+    tools, vectors = check_vectors_type(inputs)
+    if not f < len(vectors):
+        raise ValueError(f"f must be smaller than len(vectors), but got f={f} and len(vectors)={len(vectors)}")
+
+    distance = distance_tool(vectors)
+    dist = distance.cdist(vectors, vectors)
+    k = len(vectors) - f
+    indices = tools.argpartition(dist, k-1, axis = 1)[:,:k]
+    return list(tools.mean(vectors[indices], axis = 1).to(device))
+'''
 ################################################################################################
+
 def NNM(inputs: list, f: int) -> torch.Tensor:
     """
     Perform Neighborhood Noise Mixing (NNM) on the input vectors using PyTorch.
@@ -102,29 +122,21 @@ def NNM(inputs: list, f: int) -> torch.Tensor:
     Returns:
         torch.Tensor: Tensor of shape (n, d), the averaged row vectors.
     """
+
     inputs = torch.stack(inputs, dim=0)
     
     n, d = inputs.shape
 
-    # Compute squared pairwise distances (n x n)
-    # dist[i,j] = ||inputs[i] - inputs[j]||^2
-    dist = torch.cdist(inputs, inputs, p=2)
+    tools, vectors = check_vectors_type(inputs)
+    if not f < len(vectors):
+        raise ValueError(f"f must be smaller than len(vectors), but got f={f} and len(vectors)={len(vectors)}")
 
-    # For each i, get indices of n-f-1 closest neighbors (excluding itself)
-    # Set diagonal to large value to ignore self-distance
-    dist.fill_diagonal_(float('inf'))
-    _, idx = torch.topk(dist, k=n-f-1, dim=1, largest=False)
+    distance = distance_tool(vectors)
+    dist = distance.cdist(vectors, vectors)
+    k = len(vectors) - f
+    indices = tools.argpartition(dist, k-1, axis = 1)[:,:k]
+    return list(tools.mean(vectors[indices], axis = 1))
 
-    # Gather neighbors for each row
-    neighbors = inputs[idx]  # shape: (n, n-f-1, d)
-
-    # Include the original vector itself
-    combined = torch.cat([inputs.unsqueeze(1), neighbors], dim=1)  # (n, n-f, d)
-
-    # Average
-    z_outputs = combined.mean(dim=1)  # (n, d)
-
-    return [z_output for z_output in z_outputs]
 
 # Bucketing
 ################################################################################################
@@ -158,7 +170,12 @@ def Bucketing(inputs: list[torch.Tensor], s: int) -> torch.Tensor:
 
     # Split into chunks (buckets) of size s along the first dimension
     # Note: if n is not divisible by s, the last chunk will be smaller
-    chunks = torch.split(shuffled, s, dim=0)
+    try : 
+        chunks = torch.split(shuffled, s, dim=0)
+    except : 
+        print("input shape : ", n, d) 
+        print("perm : ", perm) 
+        print("s :", s) 
 
     # Compute the mean vector for each bucket
     means = torch.stack([c.mean(dim=0) for c in chunks], dim=0)  # (num_buckets, d)
@@ -368,7 +385,7 @@ def rfa(inputs: list, T: int = 3, nu: float = 0.1) -> torch.Tensor:
 
 
 
-# Geometric Median
+# Bulyan 
 ################################################################################################
 @torch.no_grad() 
 def agg_bulyan(inputs: list, f : int):
