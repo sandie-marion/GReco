@@ -360,10 +360,7 @@ def load_data(distributions: torch.Tensor, batch_size: int, dataset_name: str, h
     if distributions is not None:
         train_set, test_set = get_dataset(dataset_name)
         worker_loaders = draw_worker_loaders(distributions, train_set, batch_size)
-        if not heterogeneous_distrib :
-            test_loader = draw_test_set_loader(distributions, test_set, batch_size)
-        else : 
-            test_loader = DataLoader(test_set) 
+        test_loader = DataLoader(test_set) 
        
     # If distribution is None
     else:
