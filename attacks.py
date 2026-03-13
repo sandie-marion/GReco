@@ -75,10 +75,10 @@ class Attack:
         else:
             raise ValueError("Unknown attack")
     
-    def __call__(self, step, net, worker, inputs, labels, row_honest_gradients) -> torch.Tensor:
+    def __call__(self, step, net, worker, inputs, labels, row_honest_gradients, device) -> torch.Tensor:
         #If Attack is Label Flipping, we compute byzantine gradient for each byzantine workers (diff values) 
         if self.name == 'LF' or self.name == 'PLF' : 
-            self.byzantine_row_gradient = self.attack(net, worker, inputs, labels) 
+            self.byzantine_row_gradient = self.attack(net, worker, inputs, labels, device) 
         # Compute Byzantine gradient once per step
         elif self.step != step:
             if self.name == 'PoisonedFL':
@@ -140,15 +140,15 @@ class LabelFlipping:
         self.beta = beta
 
 
-    def __call__(self, net, worker, inputs, labels) :
+    def __call__(self, net, worker, inputs, labels, device) :
         net.train()
         net.zero_grad() 
-        outputs = net(inputs) 
+        outputs = net(inputs.to(device)) 
         flipped_labels = torch.add(labels, self.shift) 
         flipped_labels = torch.fmod(flipped_labels, self.n_classes) 
         reg = regularization(net, self.reg_param)
                         
-        loss = worker.compute_loss(outputs, flipped_labels) + reg
+        loss = worker.compute_loss(outputs, flipped_labels.to(device)) + reg
         
         loss.backward()
 

@@ -32,10 +32,8 @@ class Worker:
                 
         # Local dataset
         self.train_loader = train_loader
+        self.class_proportion = 0
 
-        # self.gradient_per_class = {l : [torch.zeros_like(param) for param in model.parameters()] for l in self.batch_provider.labels}
-        # self.momentum_per_class = {l : [torch.zeros_like(param) for param in model.parameters()] for l in self.batch_provider.labels}
-        # self.used_per_class = {l : 0 for l in self.batch_provider.labels}
 
     def compute_loss(self, outputs: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """
@@ -135,6 +133,18 @@ class Workers:
             return [worker.flatten_momentum() for worker in workers_to_consider]
         else:
             return [worker.momentum for worker in workers_to_consider]
+
+    def get_gradients(self, only_honest: bool = False, row: bool = False) -> list:
+        """
+        Get the momentum tensors from the workers, just the honest ones or everyone, flattened or not.        
+        """
+        # Filter workers based on the 'only_honest' flag
+        workers_to_consider = self.workers if not only_honest else [worker for worker in self.workers if worker.honest]
+        
+        if row:
+            return [worker.flatten_gradient() for worker in workers_to_consider]
+        else:
+            return [worker.gradient for worker in workers_to_consider]
     
     def get_selected_momentums(self, worker_idxs, row = False) -> list:
         """
@@ -148,6 +158,9 @@ class Workers:
             return [worker.flatten_momentum() for worker in workers_to_consider]
         else:
             return [worker.momentum for worker in workers_to_consider]
+
+    def get_class_proportions(self):
+        return [worker.class_proportion for worker in self.workers]
                 
     def loaders(self, seed: int = 42) -> list:
         """
