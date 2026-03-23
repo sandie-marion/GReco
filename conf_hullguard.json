@@ -5,7 +5,7 @@
     "criterion_name": ["CrossEntropy"],
     "hullguard_attack_param" : ["dirac", "uniform", "random", "projection"],
     "dataset_name": ["CIFAR10", "MNIST", "Fashion_MNIST"],
-    "n_byzantine_workers" : [2, 8, 14, 20, 26],
+    "n_byzantine_workers" : [8, 14, 20, 26],
     "alpha" : [0.1, 1, 10], 
     "gpu_list" : [0]
 }

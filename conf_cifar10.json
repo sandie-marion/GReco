@@ -1,0 +1,10 @@
+{
+    "attack_name": ["ALIE","FOE","Mimic","MinSum","LF"],
+    "aggregator_name": ["CWMed","CwTM","RFA", "GAS"],
+    "pre_aggregator_name": ["None"],
+    "criterion_name": ["CrossEntropy"],
+    "dataset_name": ["CIFAR10"],
+    "n_byzantine_workers" : [8, 14, 20, 26],
+    "alpha" : [0.1, 1, 10], 
+    "gpu_list" : [0]
+}
