@@ -8,6 +8,8 @@ from torchvision import datasets, transforms
 from data.Purchase100 import Purchase100Dataset
 from utility import flatten
 
+from torch.utils.data import random_split
+
 
 # Draw local distributions
 ################################################################################################
@@ -71,6 +73,8 @@ def worker_distributions(n_honest_workers: int, n_byzantine_workers: int, alpha:
         gobal_dataset_size = 157859
     elif dataset_name == 'EMNIST' : 
         gobal_dataset_size = 697932
+    elif dataset_name == 'EuroSAT' :
+        gobal_dataset_size = 22950
         
     local_dataset_size = gobal_dataset_size // n_honest_workers
     
@@ -181,6 +185,17 @@ def get_dataset(dataset_name: str) -> tuple:
         train_set = datasets.EMNIST(root="./data", split="byclass", train=True, transform=transform_train, download=True)
         test_set = datasets.EMNIST(root="./data", split="byclass", train=False, transform=transform_test, download=True)
         
+    elif dataset_name == "EuroSAT" : 
+
+        global_set = datasets.EuroSAT(root = "./data", download=True, transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=(0.4914, 0.4822, 0.4465),
+                     std=(0.2023, 0.1994, 0.2010))
+                ]) )
+
+        train_set, test_set = random_split(global_set, [0.85, 0.15])
+        
+        
     elif dataset_name == "Purchase100":
         train_set = Purchase100Dataset(train_bool=True)
         test_set = Purchase100Dataset(train_bool=False)
@@ -211,7 +226,11 @@ def draw_worker_loaders(distributions:torch.Tensor , train_set: torch.utils.data
     count_of_classes = distributions.sum(0)
 
     # Get indices of samples belonging to each class
-    targets = train_set.targets
+    if len(train_set) == 22950 : 
+        print("dataset is EuroSAT") 
+        targets = [train_set.dataset.targets[i] for i in train_set.indices]
+    else : 
+        targets = train_set.targets
     if not isinstance(targets, torch.Tensor):
         targets = torch.tensor(targets)
     """
